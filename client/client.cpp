@@ -165,8 +165,8 @@ void get_id(){
   write(STDOUT_FILENO, "Enter car's id:\n", 17);
   int size = read(STDIN_FILENO, id, sizeof(id) );
   id[size - 1] = '\0';
-  write(STDOUT_FILENO,id,sizeof(id));
-  write(STDOUT_FILENO,"dd",2);
+  //write(STDOUT_FILENO,id,sizeof(id));
+  //write(STDOUT_FILENO,"dd",2);
   if(size <= 0)
     exit(-1);
 }

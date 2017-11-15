@@ -15,7 +15,6 @@ int main(int argc, char* argv[])
 
 
   int counter, numbytes;
-  int active = 0 ;
   char buf[MAXDATASIZE];
   if (parameter_err(argc)) return 0 ;
   char*  PORT = argv[2] ;
@@ -72,7 +71,7 @@ void stop() {
   char msg[] = "Server is already stopped.\n";
   if (!active)
     write(STDERR_FILENO, msg, strlen(msg));
-  active = 0 ;
+      active = 0 ;
 }
 
 void on_new_connection(int indentifier) {
@@ -83,13 +82,19 @@ void on_new_connection(int indentifier) {
   write(STDOUT_FILENO, tmp, strlen(tmp));
 }
 
-void on_standard_input(string line)
+void on_standard_input(char line[], int size)
 {
-  string  msg = "STDIN : " ;
+  char* msg = "STDIN : " ;
   string  quit = ":q";
-  cout << msg << line << endl;
-  if (line == quit )
+  write(STDOUT_FILENO, msg, sizeof(msg));
+  write(STDOUT_FILENO, line, size);
+  write(STDOUT_FILENO,"\n", 1);
+  
+  string input = line ;
+  if (line == quit ){
+    cout<<"stop"<<endl;
     stop();
+  }
 }
 
 void on_new_message(int sockfd, char buf[], int valread) {
@@ -126,17 +131,7 @@ void run(char* PORT, char* ip_addr) {
   pid_t p2_pid;
   p2_pid = fork();
 
-  /*if(p2_pid == 0){
 
-  int fd1;
-  int ans;
-  fd1 = open ( "mypipe", O_RDONLY );
-  if((read ( fd1, &ans, sizeof(ans) )) > 0)
-  printf ( "%d\n", ans );
-  //continue;
-  //close (fd1);
-
-  }*/
 
   if (p2_pid > 0) {
 
@@ -144,18 +139,19 @@ void run(char* PORT, char* ip_addr) {
     cout << " Enter the directory path" << endl;
     cin >> file_path;
     int opt = 1;
-    bool active = true;
-    int master_socket , addrlen , new_socket , client_socket[30], activity, i , valread , sd;
-    int max_sd;
+    
+    int master_socket , addrlen , new_socket , activity, i , valread , sd;
+    vector<int>client_socket;
+    int max_sd = STDIN;
     char buf[MAXDATASIZE];
     struct sockaddr_in address;
 
     fd_set readfds;
     char *message = "#CONNECTION STABLISHED\n";
 
-    for (i = 0; i < BACKLOG; i++) {
-      client_socket[i] = 0;
-    }
+    /*for (i = 0; i < BACKLOG; i++) {
+      client_socket[i] = 0 ;
+    }*/
 
     if ((master_socket = socket(AF_INET , SOCK_STREAM , 0)) == 0) {
       write(STDERR_FILENO, "socket failed", 13);
@@ -196,51 +192,67 @@ void run(char* PORT, char* ip_addr) {
     addrlen = sizeof(address);
     write(STDOUT_FILENO, "Waiting for connections ...\n", 29);
 
+    //**//
+    client_socket.push_back(master_socket);
+
     while (active)
     {
 
       FD_ZERO(&readfds);   //clear the socket set
-      FD_SET(master_socket, &readfds);  //add master socket to set
+      FD_SET(/*master_socket*/ STDIN, &readfds);  //add master socket to set
 
 
-      int max_sd = master_socket;
+      int max_sd = /*master_socket*/ STDIN;
 
       //add child sockets to set
-      for ( i = 0 ; i < BACKLOG ; i++) {
-        sd = client_socket[i];  //socket descriptor
-        if (sd > 0) //if valid socket descriptor then add to read list
-          FD_SET( sd , &readfds);
+      for ( i = 0 ; i < client_socket.size() ; i++) {
+        //sd = client_socket[i];  //socket descriptor
+        //if (sd > 0) //if valid socket descriptor then add to read list
+          FD_SET( /*sd*/ client_socket[i], &readfds);
 
-        if (sd > max_sd)  //highest file descriptor number, need it for the select function
-          max_sd = sd;
+        //if (sd > max_sd)  //highest file descriptor number, need it for the select function
+          max_sd =max(client_socket[i], client_socket[i]) ;
       }
 
 
       //activity = select( max_sd + 1 , &readfds , NULL , NULL , NULL); //wait for an activity on one of the sockets
-      activity = select(max_sd + 1, &readfds, NULL, NULL, NULL);
+      int activity = select(max_sd + 1, &readfds, NULL, NULL, NULL);
 
       if ((activity < 0) && (errno != EINTR)) {
         write(STDERR_FILENO, "select error", 12);
+        exit(0);
       }
+      bool flag = false;
 
-      if (FD_ISSET(STDIN_FILENO, &readfds)) {
-        cout << "Here" << endl;
-        string line;
-        getline(cin, line);
-        on_standard_input(line);
+      if (FD_ISSET(STDIN, &readfds)) {
+
+        char buf[MAXDATASIZE];
+
+        int size = read(STDIN_FILENO, buf, sizeof(buf));
+
+        if(size  > 0){
+        buf[size -1 ] = '\0';
+
+        on_standard_input(buf, size);
+        flag = true;
+        //continue;
+      }
 
       }
 
 
       pid_t pid;
+      int status;
       int fd[2];
       pipe(fd);
       pid = fork();
-      int status;
+      
       if (pid > 0) {
 
         //wait(&status);
-        if (FD_ISSET(master_socket, &readfds)) //If something happened on the master socket,then its an incoming connection
+        //for (i = 0; i < client_socket.size(); i++)
+        //{
+        if (FD_ISSET(client_socket[0], &readfds) && !flag)  /*&& !flag*/ //If something happened on the master socket,then its an incoming connection
         {
           if ((new_socket = accept(master_socket, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0) {
             write(STDOUT_FILENO, "accept err", 10);
@@ -250,21 +262,14 @@ void run(char* PORT, char* ip_addr) {
           send_msg(new_socket, message);
 
           //add new socket to array of sockets
-          for (i = 0; i < BACKLOG; i++)
-          {
-            //if position is empty
-            if ( client_socket[i] == 0 )
-            {
-              client_socket[i] = new_socket;
-              break;
-            }
-          }
+          
+          client_socket.push_back(new_socket);
 
         }
 
         //else its some IO operation on some other socket
 
-        for (i = 0; i < BACKLOG; i++)
+        for (i = 1; i < client_socket.size(); i++)
         {
           memset(buf, 0, sizeof(buf));
           sd = client_socket[i];
@@ -276,7 +281,7 @@ void run(char* PORT, char* ip_addr) {
             if ((valread = read( sd , buf, 1024)) == 0) {
               on_terminated_connection(sd);
               close( sd );
-              client_socket[i] = 0;
+              client_socket.erase(client_socket.begin() + i);
             }
 
             //HANDLE MESSAGE
@@ -284,10 +289,11 @@ void run(char* PORT, char* ip_addr) {
 
               on_new_message(sd, buf, valread);
               close(fd[0]);
-              string message = buf;
-              //cout<<"id "<<message<<endl;
+              //char out[MAXDATASIZE];
+              //string message = buf;
+              //cout<<"id "<< message <<endl;
               //cout<<search_dirs(file_path, message)<<endl;
-              write(fd[1], &message, sizeof(buf));
+              write(fd[1], buf, valread);
               close(fd[1]);
             }
           }
@@ -296,16 +302,29 @@ void run(char* PORT, char* ip_addr) {
       }
 
 
-      if (pid == 0) {
+      else if (pid == 0) {
+
+       // while(1){
 
         close(fd[1]);
-        string input;
+        char buf[MAXDATASIZE];
+        //cout<<"hello"<<endl;
+        
+        int size = read(fd[0], buf, sizeof(buf));
+        //printf("%s\n",buf );
+        string input = buf;
+        //cout<<"size = "<<size<<endl;
+        //write(STDOUT_FILENO, &input, input.length());
+        //cout<<"pid input is "<<input<<endl;
+        if(size > 0){
 
-        read(fd[0], &input, sizeof(input));
-        //cout<<"input is : "<<input<<endl;
-        //cout<<input.length()<<endl;
-        //close(fd[0]);
+        //cout<<"pid input is "<<input<<endl;
+        //cout<<"here"<<endl;
+    
         int ans = search_dirs(file_path, input);
+        //cout<<"ans is "<<ans<<endl;
+        
+
         int fd1;
         char * myfifo = "myfifo";
 
@@ -319,26 +338,68 @@ void run(char* PORT, char* ip_addr) {
 
         /* remove the FIFO */
         unlink(myfifo);
-
-        exit(pid);
+        //break;   
       }
+        
+     // }
+      exit(pid);
     }
+  }
+
+    //is not active anymore
+    //message p2 to close
+    int fd1;
+    char * myfifo = "myfifo";
+    int msg  = -1;
+    //string msg = "close";
+
+        /* create the FIFO (named pipe) */
+        mkfifo(myfifo, 0666);
+
+        /* write "Hi" to the FIFO */
+        fd1 = open(myfifo, O_WRONLY);
+        write(fd1, &msg, sizeof(buf));
+        close(fd1);
+
+        /* remove the FIFO */
+        unlink(myfifo);
+
+
+
   }
 
   if (p2_pid == 0) {
 
     int fd2;
+    //bool closed = false;
     char * myfifo = "myfifo";
+    
+    int buf;
+
     while (1) {
 
-      int result;
+      int buf;
       /* open, read, and display the message from the FIFO */
       fd2 = open(myfifo, O_RDONLY);
-      if (read(fd2, &result, sizeof(result)) > 0 )
-        printf("Received: %d\n", result);
-      close(fd2);
+      int size = (read(fd2, &buf, sizeof(buf)) );
+      
+
+        if(size  > 0){
+           if(buf == -1){
+            cout<<"closing p2";
+            close(fd2);
+            break;
+        }
+        else{
+
+        printf("\n Received: %d\n", buf);
+        close(fd2);
+       }
+    }
 
     }
+
+    exit(p2_pid);
   }
 }
 
@@ -397,7 +458,7 @@ int search_dirs(string file_path, string car_id) {
       close(fd[1]);
       long long int input;
       read(fd[0], &input, sizeof(input));
-      //cout<<input<<endl;
+      //cout<<"input"<<input<<endl;
       sum += (input);
       //cout<<"current sum"<<sum<<endl;
       close(fd[0]);
@@ -432,7 +493,9 @@ vector<string> split(string statement, char delimeter) {
 int read_file(string path, string car_id) {
 
   ifstream myfile;
+
   //cout<<"path is : "<<path<<endl;
+  //cout<<"car id is" << car_id<<endl;
   myfile.open(path.c_str());
   if (!myfile)
     exit(0);
@@ -447,7 +510,7 @@ int read_file(string path, string car_id) {
       res += mystoi(token[2]);
   }
   myfile.close();
-  ///cout<<"calc "<<res<<endl;
+  //cout<<"calc "<<res<<endl;
   return res;
 }
 
