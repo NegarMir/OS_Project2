@@ -20,6 +20,9 @@
 #include <cstdlib>
 #include <sys/wait.h>
 #include <sstream>
+#include <fcntl.h>
+
+#define STDIN 1
 
 
 
@@ -39,7 +42,7 @@ void send_msg (int indentifier, char* msg);
 char recv_msg(int indentifier);
 void stop ();
 void on_new_connection(int indentifier);
-void on_standard_input(char* line);
+void on_standard_input(char [], int);
 void on_terminated_connection(int sockfd);
 void on_new_message (int indentifier, char[], int valread);
 void parse (char [], int sockfd);
