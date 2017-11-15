@@ -18,21 +18,19 @@
 #include <iostream>
 #include <fstream>
 #include <cstdlib>
-#include <sys/wait.h>
 #include <sstream>
 #include <fcntl.h>
+#include <sys/param.h>
+#include <sys/un.h>
+#include <sys/wait.h>
+#include <errno.h>
+#include <signal.h>
+#include <stdlib.h>
+
 
 #define STDIN 1
 
 
-
-struct server_info{
-	char* ip_addr;
-	char* port ; 
-	char* file_name;
-	char* part;
-
-};
 
 char* itoa (int i, char b[]);
 void *get_in_addr(struct sockaddr *sa);
@@ -53,3 +51,8 @@ std::string itos(int number);
 int search_dirs(std::string file_path, std::string car_id);
 std::vector<std::string> split(std::string, char);
 std::vector<std::string> find_dirs_and_files(std::string path);
+int child(int sock);
+void parent(int sock, int fd);
+ssize_t sock_fd_read(int sock, void *buf, ssize_t bufsize, int *fd);
+ssize_t sock_fd_write(int sock, void *buf, ssize_t buflen, int fd);
+void make_p2_ready();

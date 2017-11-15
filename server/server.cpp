@@ -119,12 +119,45 @@ void on_terminated_connection(int sockfd) {
   write(STDOUT_FILENO, id, strlen(id));
 }
 
-void parse(char input[], int sockfd) {
+void make_p2_ready(){
 
+  int fd1;
+    char * myfifo = "myfifo";
+    int buf;
+    int msg  = -2;
+    //string msg = "close";
+
+        /* create the FIFO (named pipe) */
+        mkfifo(myfifo, 0666);
+
+        /* write "Hi" to the FIFO */
+        fd1 = open(myfifo, O_WRONLY);
+        write(fd1, &msg, sizeof(buf));
+        close(fd1);
+
+        /* remove the FIFO */
+        unlink(myfifo);
 }
 
 
 void run(char* PORT, char* ip_addr) {
+
+
+    int st;
+    int sv[2];
+    int pid;
+
+    /*int temp_pid = fork();
+
+    if(temp_pid > 0){
+
+    if (socketpair(AF_LOCAL, SOCK_STREAM, 0, sv) < 0) {
+        perror("socketpair");
+        exit(1);
+    }
+    wait(&st);
+    exit(temp_pid);
+  }*/
 
 
 
@@ -259,6 +292,31 @@ void run(char* PORT, char* ip_addr) {
             exit(EXIT_FAILURE);
           }
           on_new_connection(new_socket);
+
+          pid_t temp_pid = fork();
+
+         if(temp_pid > 0){
+
+           
+            wait(&st);
+            exit(temp_pid);
+           }
+
+          if(temp_pid == 0){
+
+           if (socketpair(AF_LOCAL, SOCK_STREAM, 0, sv) < 0) {
+            perror("socketpair");
+            exit(1);
+            }
+
+           
+           close(sv[1]);
+          
+           make_p2_ready();
+           parent(sv[0], new_socket);
+           exit(temp_pid);
+         }
+        
           send_msg(new_socket, message);
 
           //add new socket to array of sockets
@@ -289,10 +347,7 @@ void run(char* PORT, char* ip_addr) {
 
               on_new_message(sd, buf, valread);
               close(fd[0]);
-              //char out[MAXDATASIZE];
-              //string message = buf;
-              //cout<<"id "<< message <<endl;
-              //cout<<search_dirs(file_path, message)<<endl;
+       
               write(fd[1], buf, valread);
               close(fd[1]);
             }
@@ -308,21 +363,18 @@ void run(char* PORT, char* ip_addr) {
 
         close(fd[1]);
         char buf[MAXDATASIZE];
-        //cout<<"hello"<<endl;
+
         
         int size = read(fd[0], buf, sizeof(buf));
-        //printf("%s\n",buf );
+       
         string input = buf;
-        //cout<<"size = "<<size<<endl;
-        //write(STDOUT_FILENO, &input, input.length());
-        //cout<<"pid input is "<<input<<endl;
+      
         if(size > 0){
 
-        //cout<<"pid input is "<<input<<endl;
-        //cout<<"here"<<endl;
+
     
         int ans = search_dirs(file_path, input);
-        //cout<<"ans is "<<ans<<endl;
+ 
         
 
         int fd1;
@@ -370,6 +422,11 @@ void run(char* PORT, char* ip_addr) {
 
   if (p2_pid == 0) {
 
+    
+    
+    int sock_fd ;
+        
+
     int fd2;
     //bool closed = false;
     char * myfifo = "myfifo";
@@ -389,6 +446,15 @@ void run(char* PORT, char* ip_addr) {
             cout<<"closing p2";
             close(fd2);
             break;
+        }
+        else if(buf == -2){
+           
+           //sleep(1);
+           close(sv[0]);
+           sock_fd = child(sv[1]);
+           cout<<" got fd :"<<sock_fd<<endl;
+
+
         }
         else{
 
@@ -571,5 +637,139 @@ vector<string> find_dirs_and_files(string path) {
   }
   return res;
 }
+
+
+ssize_t
+sock_fd_write(int sock, char *buf, ssize_t buflen, int fd)
+{
+    ssize_t     size;
+    struct msghdr   msg;
+    struct iovec    iov;
+    union {
+        struct cmsghdr  cmsghdr;
+        char        control[CMSG_SPACE(sizeof (int))];
+    } cmsgu;
+    struct cmsghdr  *cmsg;
+
+    iov.iov_base = buf;
+    iov.iov_len = buflen;
+
+    msg.msg_name = NULL;
+    msg.msg_namelen = 0;
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+
+    if (fd != -1) {
+        msg.msg_control = cmsgu.control;
+        msg.msg_controllen = sizeof(cmsgu.control);
+
+        cmsg = CMSG_FIRSTHDR(&msg);
+        cmsg->cmsg_len = CMSG_LEN(sizeof (int));
+        cmsg->cmsg_level = SOL_SOCKET;
+        cmsg->cmsg_type = SCM_RIGHTS;
+
+        printf ("passing fd %d\n", fd);
+        *((int *) CMSG_DATA(cmsg)) = fd;
+    } else {
+        msg.msg_control = NULL;
+        msg.msg_controllen = 0;
+        printf ("not passing fd\n");
+    }
+
+    size = sendmsg(sock, &msg, 0);
+
+    if (size < 0)
+        perror ("sendmsg");
+    return size;
+}
+
+
+ssize_t
+sock_fd_read(int sock, char *buf, ssize_t bufsize, int *fd)
+{
+    ssize_t     size;
+
+    if (fd) {
+        struct msghdr   msg;
+        struct iovec    iov;
+        union {
+            struct cmsghdr  cmsghdr;
+            char        control[CMSG_SPACE(sizeof (int))];
+        } cmsgu;
+        struct cmsghdr  *cmsg;
+
+        iov.iov_base = buf;
+        iov.iov_len = bufsize;
+
+        msg.msg_name = NULL;
+        msg.msg_namelen = 0;
+        msg.msg_iov = &iov;
+        msg.msg_iovlen = 1;
+        msg.msg_control = cmsgu.control;
+        msg.msg_controllen = sizeof(cmsgu.control);
+        size = recvmsg (sock, &msg, 0);
+        if (size < 0) {
+            perror ("recvmsg");
+            exit(1);
+        }
+        cmsg = CMSG_FIRSTHDR(&msg);
+        if (cmsg && cmsg->cmsg_len == CMSG_LEN(sizeof(int))) {
+            if (cmsg->cmsg_level != SOL_SOCKET) {
+                fprintf (stderr, "invalid cmsg_level %d\n",
+                     cmsg->cmsg_level);
+                exit(1);
+            }
+            if (cmsg->cmsg_type != SCM_RIGHTS) {
+                fprintf (stderr, "invalid cmsg_type %d\n",
+                     cmsg->cmsg_type);
+                exit(1);
+            }
+
+            *fd = *((int *) CMSG_DATA(cmsg));
+            printf ("received fd %d\n", *fd);
+        } else
+            *fd = -1;
+    } else {
+        size = read (sock, buf, bufsize);
+        if (size < 0) {
+            perror("read");
+            exit(1);
+        }
+    }
+    return size;
+}
+
+int 
+child(int sock)
+{
+    int fd;
+    char    buf[16];
+    ssize_t size;
+
+    sleep(1);
+    for (;;) {
+        size = sock_fd_read(sock, buf, sizeof(buf), &fd);
+        if (size <= 0)
+            break;
+        printf ("read %d\n", size);
+        /*if (fd != -1) {
+            write(fd, "hello, world\n", 13);
+            close(fd);
+        }*/
+
+        return fd;
+    }
+}
+
+void
+parent(int sock, int fd)
+{
+    ssize_t size;
+    int i;
+    
+    size = sock_fd_write(sock, "1", 1, fd);
+    printf ("wrote %d\n", size);
+}
+
 
 
