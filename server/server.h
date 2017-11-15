@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <iostream>
 #include <fstream>
+#include <cstring>
 #include <cstdlib>
 #include <sys/wait.h>
 #include <sstream>
