@@ -71,7 +71,7 @@ void stop() {
   char msg[] = "Server is already stopped.\n";
   if (!active)
     write(STDERR_FILENO, msg, strlen(msg));
-      active = 0 ;
+  active = 0 ;
 }
 
 void on_new_connection(int indentifier) {
@@ -88,11 +88,11 @@ void on_standard_input(char line[], int size)
   string  quit = ":q";
   write(STDOUT_FILENO, msg, sizeof(msg));
   write(STDOUT_FILENO, line, size);
-  write(STDOUT_FILENO,"\n", 1);
-  
+  write(STDOUT_FILENO, "\n", 1);
+
   string input = line ;
-  if (line == quit ){
-    cout<<"stop"<<endl;
+  if (line == quit ) {
+    cout << "stop" << endl;
     stop();
   }
 }
@@ -119,46 +119,101 @@ void on_terminated_connection(int sockfd) {
   write(STDOUT_FILENO, id, strlen(id));
 }
 
-void make_p2_ready(){
+void make_p2_ready() {
 
   int fd1;
-    char * myfifo = "myfifo";
-    int buf;
-    int msg  = -2;
-    //string msg = "close";
+  char * myfifo = "myfifo";
+  int buf;
+  int msg  = -2;
+  //string msg = "close";
 
-        /* create the FIFO (named pipe) */
-        mkfifo(myfifo, 0666);
+  /* create the FIFO (named pipe) */
+  mkfifo(myfifo, 0666);
 
-        /* write "Hi" to the FIFO */
-        fd1 = open(myfifo, O_WRONLY);
-        write(fd1, &msg, sizeof(buf));
-        close(fd1);
+  /* write "Hi" to the FIFO */
+  fd1 = open(myfifo, O_WRONLY);
+  write(fd1, &msg, sizeof(buf));
+  close(fd1);
 
-        /* remove the FIFO */
-        unlink(myfifo);
+  /* remove the FIFO */
+  unlink(myfifo);
 }
 
 
 void run(char* PORT, char* ip_addr) {
 
 
-    int st;
-    int sv[2];
-    int pid;
+  int st;
+  int sv[2];
+  int pid;
 
-    /*int temp_pid = fork();
 
-    if(temp_pid > 0){
 
-    if (socketpair(AF_LOCAL, SOCK_STREAM, 0, sv) < 0) {
-        perror("socketpair");
-        exit(1);
-    }
-    wait(&st);
-    exit(temp_pid);
+  /* pid_t p2_pid;
+   p2_pid = fork();
+
+
+
+   if (p2_pid > 0) {*/
+
+
+  cout << " Enter the directory path" << endl;
+  cin >> file_path;
+  int opt = 1;
+
+  int master_socket , addrlen , new_socket , activity, i , valread , sd;
+  vector<int>client_socket;
+  int max_sd = STDIN;
+  char buf[MAXDATASIZE];
+  struct sockaddr_in address;
+
+  fd_set readfds;
+  char *message = "#CONNECTION STABLISHED\n";
+
+  /*for (i = 0; i < BACKLOG; i++) {
+    client_socket[i] = 0 ;
   }*/
 
+  if ((master_socket = socket(AF_INET , SOCK_STREAM , 0)) == 0) {
+    write(STDERR_FILENO, "socket failed", 13);
+    exit(EXIT_FAILURE);
+  }
+
+  //set master socket to allow multiple connections ,
+  //this is just a good habit, it will work without this
+  if ( setsockopt(master_socket, SOL_SOCKET, SO_REUSEADDR, (char *)&opt, sizeof(opt)) < 0 ) {
+    write(STDERR_FILENO, "setsockopt", 10);
+    exit(EXIT_FAILURE);
+  }
+
+  address.sin_family = AF_INET;
+  address.sin_addr.s_addr = inet_addr(ip_addr);
+  int port = atoi(PORT);
+  address.sin_port = htons( port );
+
+  //bind the socket to localhost port 8888
+  if (bind(master_socket, (struct sockaddr *)&address, sizeof(address)) < 0) {
+    write(STDERR_FILENO, "bind failed\n", 12);
+    exit(EXIT_FAILURE);
+  }
+
+
+  write(STDOUT_FILENO, "Listener on port ", 17);
+  write(STDOUT_FILENO, PORT, strlen(PORT));
+  write(STDOUT_FILENO, "\n", 1);
+
+
+  if (listen(master_socket, 4) < 0) {
+
+    write(STDOUT_FILENO, "listen", 6);
+    exit(EXIT_FAILURE);
+  }
+
+
+  if (socketpair(AF_LOCAL, SOCK_STREAM, 0, sv) < 0) {
+    perror("socketpair");
+    exit(1);
+  }
 
 
   pid_t p2_pid;
@@ -168,58 +223,6 @@ void run(char* PORT, char* ip_addr) {
 
   if (p2_pid > 0) {
 
-
-    cout << " Enter the directory path" << endl;
-    cin >> file_path;
-    int opt = 1;
-    
-    int master_socket , addrlen , new_socket , activity, i , valread , sd;
-    vector<int>client_socket;
-    int max_sd = STDIN;
-    char buf[MAXDATASIZE];
-    struct sockaddr_in address;
-
-    fd_set readfds;
-    char *message = "#CONNECTION STABLISHED\n";
-
-    /*for (i = 0; i < BACKLOG; i++) {
-      client_socket[i] = 0 ;
-    }*/
-
-    if ((master_socket = socket(AF_INET , SOCK_STREAM , 0)) == 0) {
-      write(STDERR_FILENO, "socket failed", 13);
-      exit(EXIT_FAILURE);
-    }
-
-    //set master socket to allow multiple connections ,
-    //this is just a good habit, it will work without this
-    if ( setsockopt(master_socket, SOL_SOCKET, SO_REUSEADDR, (char *)&opt, sizeof(opt)) < 0 ) {
-      write(STDERR_FILENO, "setsockopt", 10);
-      exit(EXIT_FAILURE);
-    }
-
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = inet_addr(ip_addr);
-    int port = atoi(PORT);
-    address.sin_port = htons( port );
-
-    //bind the socket to localhost port 8888
-    if (bind(master_socket, (struct sockaddr *)&address, sizeof(address)) < 0) {
-      write(STDERR_FILENO, "bind failed\n", 12);
-      exit(EXIT_FAILURE);
-    }
-
-
-    write(STDOUT_FILENO, "Listener on port ", 17);
-    write(STDOUT_FILENO, PORT, strlen(PORT));
-    write(STDOUT_FILENO, "\n", 1);
-
-
-    if (listen(master_socket, 4) < 0) {
-
-      write(STDOUT_FILENO, "listen", 6);
-      exit(EXIT_FAILURE);
-    }
 
     //accept the incoming connection
     addrlen = sizeof(address);
@@ -241,10 +244,10 @@ void run(char* PORT, char* ip_addr) {
       for ( i = 0 ; i < client_socket.size() ; i++) {
         //sd = client_socket[i];  //socket descriptor
         //if (sd > 0) //if valid socket descriptor then add to read list
-          FD_SET( /*sd*/ client_socket[i], &readfds);
+        FD_SET( /*sd*/ client_socket[i], &readfds);
 
         //if (sd > max_sd)  //highest file descriptor number, need it for the select function
-          max_sd =max(client_socket[i], client_socket[i]) ;
+        max_sd = max(client_socket[i], client_socket[i]) ;
       }
 
 
@@ -263,13 +266,13 @@ void run(char* PORT, char* ip_addr) {
 
         int size = read(STDIN_FILENO, buf, sizeof(buf));
 
-        if(size  > 0){
-        buf[size -1 ] = '\0';
+        if (size  > 0) {
+          buf[size - 1 ] = '\0';
 
-        on_standard_input(buf, size);
-        flag = true;
-        //continue;
-      }
+          on_standard_input(buf, size);
+          flag = true;
+          //continue;
+        }
 
       }
 
@@ -278,9 +281,10 @@ void run(char* PORT, char* ip_addr) {
       int status;
       int fd[2];
       pipe(fd);
+      int stat;
       pid = fork();
-      
-      if (pid > 0) {
+
+      if (pid > 0) {   ////P1
 
         //wait(&status);
         //for (i = 0; i < client_socket.size(); i++)
@@ -291,36 +295,18 @@ void run(char* PORT, char* ip_addr) {
             write(STDOUT_FILENO, "accept err", 10);
             exit(EXIT_FAILURE);
           }
+
+          //pid = fork();
+          // if( pid > 0 ){
           on_new_connection(new_socket);
 
-          pid_t temp_pid = fork();
 
-         if(temp_pid > 0){
-
-           
-            wait(&st);
-            exit(temp_pid);
-           }
-
-          if(temp_pid == 0){
-
-           if (socketpair(AF_LOCAL, SOCK_STREAM, 0, sv) < 0) {
-            perror("socketpair");
-            exit(1);
-            }
-
-           
-           close(sv[1]);
-          
-           make_p2_ready();
-           parent(sv[0], new_socket);
-           exit(temp_pid);
-         }
-        
           send_msg(new_socket, message);
+          make_p2_ready();
+          parent(sv[0], new_socket);
 
           //add new socket to array of sockets
-          
+
           client_socket.push_back(new_socket);
 
         }
@@ -340,6 +326,8 @@ void run(char* PORT, char* ip_addr) {
               on_terminated_connection(sd);
               close( sd );
               client_socket.erase(client_socket.begin() + i);
+              wait(&stat);
+              //exit(pid);
             }
 
             //HANDLE MESSAGE
@@ -347,74 +335,82 @@ void run(char* PORT, char* ip_addr) {
 
               on_new_message(sd, buf, valread);
               close(fd[0]);
-       
               write(fd[1], buf, valread);
               close(fd[1]);
             }
           }
         }
 
+        //wait(&stat);
+
       }
 
 
       else if (pid == 0) {
 
-       // while(1){
+        // while(1){
 
         close(fd[1]);
         char buf[MAXDATASIZE];
 
-        
+
         int size = read(fd[0], buf, sizeof(buf));
-       
+
         string input = buf;
-      
-        if(size > 0){
+
+        if (size > 0) {
 
 
-    
-        int ans = search_dirs(file_path, input);
- 
-        
 
-        int fd1;
-        char * myfifo = "myfifo";
+          int ans = search_dirs(file_path, input);
 
-        /* create the FIFO (named pipe) */
-        mkfifo(myfifo, 0666);
+          //write(STDOUT_FILENO, "ans computed\n", 12);
 
-        /* write "Hi" to the FIFO */
-        fd1 = open(myfifo, O_WRONLY);
-        write(fd1, &ans, sizeof(ans));
-        close(fd1);
 
-        /* remove the FIFO */
-        unlink(myfifo);
-        //break;   
+
+          int fd1;
+          char * myfifo = "myfifo";
+
+
+
+
+          /* create the FIFO (named pipe) */
+          mkfifo(myfifo, 0666);
+
+          /* write "Hi" to the FIFO */
+          fd1 = open(myfifo, O_WRONLY);
+          write(fd1, &ans, sizeof(ans));
+          close(fd1);
+
+          /* remove the FIFO */
+          unlink(myfifo);
+          //break;
+        }
+
+        // }
+        exit(pid);
       }
-        
-     // }
-      exit(pid);
-    }
-  }
 
+    }
     //is not active anymore
     //message p2 to close
+
+    write(STDOUT_FILENO, "Shutting Down\n", 14);
     int fd1;
     char * myfifo = "myfifo";
     int msg  = -1;
     //string msg = "close";
 
-        /* create the FIFO (named pipe) */
-        mkfifo(myfifo, 0666);
+    /* create the FIFO (named pipe) */
+    mkfifo(myfifo, 0666);
 
-        /* write "Hi" to the FIFO */
-        fd1 = open(myfifo, O_WRONLY);
-        write(fd1, &msg, sizeof(buf));
-        close(fd1);
+    /* write "Hi" to the FIFO */
+    fd1 = open(myfifo, O_WRONLY);
+    write(fd1, &msg, sizeof(buf));
+    close(fd1);
 
-        /* remove the FIFO */
-        unlink(myfifo);
+    /* remove the FIFO */
+    unlink(myfifo);
 
 
 
@@ -422,15 +418,15 @@ void run(char* PORT, char* ip_addr) {
 
   if (p2_pid == 0) {
 
-    
-    
-    int sock_fd ;
-        
 
+
+    int sock_fd ;
     int fd2;
+    bool ready = false;
+
     //bool closed = false;
     char * myfifo = "myfifo";
-    
+
     int buf;
 
     while (1) {
@@ -438,36 +434,59 @@ void run(char* PORT, char* ip_addr) {
       int buf;
       /* open, read, and display the message from the FIFO */
       fd2 = open(myfifo, O_RDONLY);
+
       int size = (read(fd2, &buf, sizeof(buf)) );
-      
 
-        if(size  > 0){
-           if(buf == -1){
-            cout<<"closing p2";
-            close(fd2);
-            break;
+
+
+      if (size  > 0) {
+        //write(STDOUT_FILENO, "read ", 5);
+        // write(STDOUT_FILENO, &buf, sizeof(buf));
+        if (buf == -1) {
+          cout << "closing p2";
+          close(fd2);
+          break;
         }
-        else if(buf == -2){
-           
-           //sleep(1);
-           close(sv[0]);
-           sock_fd = child(sv[1]);
-           cout<<" got fd :"<<sock_fd<<endl;
+        else if ( buf == -2 ) {
+
+
+          close(sv[0]);
+          sock_fd = child(sv[1]);
+          ready = true;
 
 
         }
-        else{
 
-        printf("\n Received: %d\n", buf);
-        close(fd2);
-       }
+
+
+      }
+      else if (ready) {
+
+       // printf("\n Received: %d\n", buf);
+
+        
+
+        if (send(sock_fd, &buf, sizeof(buf), 0) > 0)
+
+          cout << " Send Successfully done.\n";
+        else
+        {
+          cout << " Send failed\n";
+          exit(1);
+        }
+        if (sock_fd != -1)
+
+          close(sock_fd);
+
+        ready = false;
+      }
     }
 
-    }
-
-    exit(p2_pid);
   }
+
+  exit(p2_pid);
 }
+
 
 
 
@@ -642,133 +661,132 @@ vector<string> find_dirs_and_files(string path) {
 ssize_t
 sock_fd_write(int sock, char *buf, ssize_t buflen, int fd)
 {
-    ssize_t     size;
-    struct msghdr   msg;
-    struct iovec    iov;
-    union {
-        struct cmsghdr  cmsghdr;
-        char        control[CMSG_SPACE(sizeof (int))];
-    } cmsgu;
-    struct cmsghdr  *cmsg;
+  ssize_t     size;
+  struct msghdr   msg;
+  struct iovec    iov;
+  union {
+    struct cmsghdr  cmsghdr;
+    char        control[CMSG_SPACE(sizeof (int))];
+  } cmsgu;
+  struct cmsghdr  *cmsg;
 
-    iov.iov_base = buf;
-    iov.iov_len = buflen;
+  iov.iov_base = buf;
+  iov.iov_len = buflen;
 
-    msg.msg_name = NULL;
-    msg.msg_namelen = 0;
-    msg.msg_iov = &iov;
-    msg.msg_iovlen = 1;
+  msg.msg_name = NULL;
+  msg.msg_namelen = 0;
+  msg.msg_iov = &iov;
+  msg.msg_iovlen = 1;
 
-    if (fd != -1) {
-        msg.msg_control = cmsgu.control;
-        msg.msg_controllen = sizeof(cmsgu.control);
+  if (fd != -1) {
+    msg.msg_control = cmsgu.control;
+    msg.msg_controllen = sizeof(cmsgu.control);
 
-        cmsg = CMSG_FIRSTHDR(&msg);
-        cmsg->cmsg_len = CMSG_LEN(sizeof (int));
-        cmsg->cmsg_level = SOL_SOCKET;
-        cmsg->cmsg_type = SCM_RIGHTS;
+    cmsg = CMSG_FIRSTHDR(&msg);
+    cmsg->cmsg_len = CMSG_LEN(sizeof (int));
+    cmsg->cmsg_level = SOL_SOCKET;
+    cmsg->cmsg_type = SCM_RIGHTS;
 
-        printf ("passing fd %d\n", fd);
-        *((int *) CMSG_DATA(cmsg)) = fd;
-    } else {
-        msg.msg_control = NULL;
-        msg.msg_controllen = 0;
-        printf ("not passing fd\n");
-    }
+    printf ("passing fd %d\n", fd);
+    *((int *) CMSG_DATA(cmsg)) = fd;
+  } else {
+    msg.msg_control = NULL;
+    msg.msg_controllen = 0;
+    printf ("not passing fd\n");
+  }
 
-    size = sendmsg(sock, &msg, 0);
+  size = sendmsg(sock, &msg, 0);
 
-    if (size < 0)
-        perror ("sendmsg");
-    return size;
+  if (size < 0)
+    perror ("sendmsg");
+  return size;
 }
 
 
 ssize_t
 sock_fd_read(int sock, char *buf, ssize_t bufsize, int *fd)
 {
-    ssize_t     size;
+  ssize_t     size;
 
-    if (fd) {
-        struct msghdr   msg;
-        struct iovec    iov;
-        union {
-            struct cmsghdr  cmsghdr;
-            char        control[CMSG_SPACE(sizeof (int))];
-        } cmsgu;
-        struct cmsghdr  *cmsg;
+  if (fd) {
+    struct msghdr   msg;
+    struct iovec    iov;
+    union {
+      struct cmsghdr  cmsghdr;
+      char        control[CMSG_SPACE(sizeof (int))];
+    } cmsgu;
+    struct cmsghdr  *cmsg;
 
-        iov.iov_base = buf;
-        iov.iov_len = bufsize;
+    iov.iov_base = buf;
+    iov.iov_len = bufsize;
 
-        msg.msg_name = NULL;
-        msg.msg_namelen = 0;
-        msg.msg_iov = &iov;
-        msg.msg_iovlen = 1;
-        msg.msg_control = cmsgu.control;
-        msg.msg_controllen = sizeof(cmsgu.control);
-        size = recvmsg (sock, &msg, 0);
-        if (size < 0) {
-            perror ("recvmsg");
-            exit(1);
-        }
-        cmsg = CMSG_FIRSTHDR(&msg);
-        if (cmsg && cmsg->cmsg_len == CMSG_LEN(sizeof(int))) {
-            if (cmsg->cmsg_level != SOL_SOCKET) {
-                fprintf (stderr, "invalid cmsg_level %d\n",
-                     cmsg->cmsg_level);
-                exit(1);
-            }
-            if (cmsg->cmsg_type != SCM_RIGHTS) {
-                fprintf (stderr, "invalid cmsg_type %d\n",
-                     cmsg->cmsg_type);
-                exit(1);
-            }
-
-            *fd = *((int *) CMSG_DATA(cmsg));
-            printf ("received fd %d\n", *fd);
-        } else
-            *fd = -1;
-    } else {
-        size = read (sock, buf, bufsize);
-        if (size < 0) {
-            perror("read");
-            exit(1);
-        }
+    msg.msg_name = NULL;
+    msg.msg_namelen = 0;
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+    msg.msg_control = cmsgu.control;
+    msg.msg_controllen = sizeof(cmsgu.control);
+    size = recvmsg (sock, &msg, 0);
+    if (size < 0) {
+      perror ("recvmsg");
+      exit(1);
     }
-    return size;
+    cmsg = CMSG_FIRSTHDR(&msg);
+    if (cmsg && cmsg->cmsg_len == CMSG_LEN(sizeof(int))) {
+      if (cmsg->cmsg_level != SOL_SOCKET) {
+        fprintf (stderr, "invalid cmsg_level %d\n",
+                 cmsg->cmsg_level);
+        exit(1);
+      }
+      if (cmsg->cmsg_type != SCM_RIGHTS) {
+        fprintf (stderr, "invalid cmsg_type %d\n",
+                 cmsg->cmsg_type);
+        exit(1);
+      }
+
+      *fd = *((int *) CMSG_DATA(cmsg));
+      printf ("\n received fd %d\n", *fd);
+    } else
+      *fd = -1;
+  } else {
+    size = read (sock, buf, bufsize);
+    if (size < 0) {
+      perror("read");
+      exit(1);
+    }
+  }
+  return size;
 }
 
-int 
-child(int sock)
+int child(int sock)
 {
-    int fd;
-    char    buf[16];
-    ssize_t size;
+  int fd;
+  char    buf[16];
+  ssize_t size;
 
-    sleep(1);
-    for (;;) {
-        size = sock_fd_read(sock, buf, sizeof(buf), &fd);
-        if (size <= 0)
-            break;
-        printf ("read %d\n", size);
-        /*if (fd != -1) {
-            write(fd, "hello, world\n", 13);
-            close(fd);
-        }*/
+  sleep(1);
+  for (;;) {
+    size = sock_fd_read(sock, buf, sizeof(buf), &fd);
+    if (size <= 0)
+      break;
+    //printf ("read %d\n", size);
+    /*if (fd != -1) {
+        write(fd, "hello, world\n", 13);
+        close(fd);
+    }*/
 
-        return fd;
-    }
+    return fd;
+  }
 }
 
 void
 parent(int sock, int fd)
 {
-    ssize_t size;
-    int i;
-    
-    size = sock_fd_write(sock, "1", 1, fd);
-    printf ("wrote %d\n", size);
+  ssize_t size;
+  int i;
+
+  size = sock_fd_write(sock, "1", 1, fd);
+  //printf ("wrote %d\n", size);
 }
 
 

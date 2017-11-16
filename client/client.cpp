@@ -116,7 +116,14 @@ int connect_server(char* ip_addr, char* PORT){
 
     send_msg(id, sockfd);
     
+    int ans;
 
+    if ((numbytes = recv(sockfd, &ans, sizeof(ans), 0)) == -1) {
+        write(STDERR_FILENO, "recv", 4);
+        return 1;
+    }
+
+    cout<<"total = "<< ans<<endl;
 
     return 0;
 }
